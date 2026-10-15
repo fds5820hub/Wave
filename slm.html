@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 雙語果凍史萊姆 (音量放大器版)</title>
+    <title>3D果凍史萊姆</title>
     <style>
         /* ==========================================
            基礎設定
@@ -129,6 +129,30 @@
 
         #gl-canvas { display: block; pointer-events: auto; position: absolute; top: 0; left: 0; z-index: 5; }
         #visualizer { display: block; position: absolute; bottom: 0; left: 0; width: 100%; pointer-events: none; z-index: 2; }
+
+        /* ==========================================
+           右下角：訪客計數器
+           ========================================== */
+        #visitor-counter {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 20;
+            pointer-events: auto;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+            background: rgba(0, 0, 0, 0.15);
+            padding: 4px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(2px);
+        }
+
+        #visitor-counter:hover {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -151,7 +175,6 @@
             
             <hr style="border-color: rgba(255,255,255,0.2); margin: 12px 0;">
             
-            <!-- 將文字改為金黃色 (#FFD700) -->
             <p style="margin: 0 0 8px 0; font-weight: bold; color: #FFD700;">🎼 完美音質音樂 / HQ Music：</p>
             
             <div class="custom-select-wrapper">
@@ -181,11 +204,19 @@
                 <p style="margin: 0 0 5px 0; font-weight: bold; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 3px;">🎵 頻譜跳動設定 Visualizer</p>
                 <label>顏色 (Color): <input type="color" id="vis-color" value="#ffffff" style="cursor: pointer;"></label>
                 <label>透明度 (Opacity): <input type="range" id="vis-opacity" min="0" max="1" step="0.1" value="0.5" style="width: 80px; cursor: pointer;"></label>
-                <!-- 【新增】：音量放大器拉桿 -->
                 <label>🔊 音量放大 (Boost): <input type="range" id="audio-volume" min="0" max="3" step="0.1" value="1.5" style="width: 80px; cursor: pointer;"></label>
             </div>
         </div>
     </div>
+
+    <!-- 訪客計數器：記得把 YOUR_URL 換成你的網址喔！ -->
+    <a id="visitor-counter" href="https://hits.seeyoufarm.com" target="_blank" title="訪客計數器">
+        <img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=YOUR_URL&count_bg=%23FF3344&title_bg=%23222222&title=Visits&edge_flat=true" alt="Hits"/>
+    </a>
+<a id="visitor-counter" href="https://hits.seeyoufarm.comhttps://fds5820hub.github.io/Wave/slm.html" target="_blank" title="訪客計數器">
+    <!-- 請將 YOUR_URL 替換為你實際佈署的網站網址 (例如 https://my-slime.netlify.app) -->
+    <img src="https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=YOUR_URL&count_bg=%23FF3344&title_bg=%23222222&title=Visits&edge_flat=true" alt="Hits"/>
+</a>
 
     <script type="importmap">
         {
@@ -203,9 +234,6 @@
         import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
         import GUI from 'lil-gui';
 
-        // ==========================================
-        //  1. 下拉選單互動邏輯
-        // ==========================================
         const trigger = document.getElementById('music-dropdown-trigger');
         const optionsContainer = document.getElementById('music-dropdown-options');
         const triggerText = document.getElementById('music-dropdown-text');
@@ -236,9 +264,6 @@
             });
         });
 
-        // ==========================================
-        //  2. 網頁音訊分析器與放大器 (GainNode)
-        // ==========================================
         const musicUpload = document.getElementById('music-upload');
         const visColorInput = document.getElementById('vis-color');
         const visOpacityInput = document.getElementById('vis-opacity');
@@ -250,8 +275,6 @@
         audioPlayer.addEventListener('play', () => {
             if (!isAudioInitialized) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                
-                // 建立分析器與放大器
                 analyser = audioCtx.createAnalyser();
                 gainNode = audioCtx.createGain(); 
                 
@@ -260,15 +283,11 @@
                 dataArray = new Uint8Array(bufferLength);
                 
                 const source = audioCtx.createMediaElementSource(audioPlayer);
-                
-                // 【核心修改】：串接音訊路徑: 原始音源 -> 放大器 -> 分析器 -> 喇叭輸出
                 source.connect(gainNode);
                 gainNode.connect(analyser);
                 analyser.connect(audioCtx.destination);
                 
-                // 設定初始放大倍率 (預設為 1.5 倍)
                 gainNode.gain.value = audioVolumeInput.value;
-                
                 isAudioInitialized = true;
             }
             if (audioCtx.state === 'suspended') {
@@ -277,7 +296,6 @@
             visControls.style.display = 'block';
         });
 
-        // 監聽音量拉桿的變化，即時調整增益值
         audioVolumeInput.addEventListener('input', (e) => {
             if (gainNode) {
                 gainNode.gain.value = e.target.value;
@@ -306,10 +324,6 @@
         }
         resizeVisualizer();
 
-
-        // ==========================================
-        //  3. 背景圖片上傳功能
-        // ==========================================
         const bgUpload = document.getElementById('bg-upload');
         const bgLayer = document.getElementById('bg-layer');
         bgUpload.addEventListener('change', (event) => {
@@ -321,9 +335,6 @@
             event.target.value = '';
         });
 
-        // ==========================================
-        //  4. 3D 史萊姆與物理引擎
-        // ==========================================
         const params = { stiffness: 0.15, damping: 0.85, color: '#ff3344', size: 1.0, opacity: 0.95, pullRadius: 0.8, pullStrength: 0.5, hitboxScale: 1.25 };
 
         const scene = new THREE.Scene();
@@ -377,9 +388,6 @@
         slimeGroup.add(bodyMesh); slimeGroup.add(faceMesh); slimeGroup.add(hitboxMesh); slimeGroup.rotation.y = -Math.PI / 2;
         scene.add(slimeGroup);
 
-        // ==========================================
-        //  5. 雙語 UI 控制面板
-        // ==========================================
         const gui = new GUI({ title: '⚙️ 控制面板 / Controls' });
         
         gui.add(params, 'stiffness', 0.01, 0.5).name('回彈剛度 / Stiffness');
