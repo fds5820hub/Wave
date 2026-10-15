@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 雙語果凍史萊姆 (音量放大器版)</title>
+    <style>
+        /* ==========================================
+           基礎設定
+           ========================================== */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: sans-serif;
+            background-color: #222222; 
+        }
+
+        #bg-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            z-index: 0; pointer-events: none;
+        }
+        
+        /* ==========================================
+           左下角：說明欄樣式
+           ========================================== */
+        #info {
+            position: absolute;
+            bottom: 20px; left: 20px;
+            color: #ffffff; background: rgba(0, 0, 0, 0.15); 
+            padding: 10px 15px; border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            pointer-events: auto; z-index: 10; 
+            transition: all 0.3s ease; backdrop-filter: blur(2px);
+            min-width: 250px;
+        }
+        
+        #info:hover {
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(6px); box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .info-title { margin: 0; font-size: 15px; font-weight: bold; cursor: default; opacity: 1; line-height: 1.4; }
+        .info-content { max-height: 0; opacity: 0; overflow: hidden; transition: all 0.4s ease; }
+        #info:hover .info-content { max-height: 550px; opacity: 1; margin-top: 12px; overflow: visible; }
+        
+        .info-content p { margin: 10px 0; font-size: 14px; color: #ffffff; line-height: 1.4; }
+        .en-sub { display: block; font-size: 11px; color: #ffffff; font-weight: normal; }
+
+        .upload-btn {
+            display: inline-block; margin-top: 5px; padding: 8px 12px;
+            background-color: #ff3344; color: white; border-radius: 6px;
+            cursor: pointer; font-size: 13px; font-weight: bold;
+            border: none; transition: background 0.3s;
+        }
+        .upload-btn:hover { background-color: #ff5566; }
+        
+        .vis-controls {
+            margin-top: 10px; background: rgba(255, 255, 255, 0.1);
+            padding: 8px; border-radius: 8px; font-size: 13px;
+        }
+        .vis-controls label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+
+        /* ==========================================
+           自訂下拉選單樣式 (向上展開)
+           ========================================== */
+        .custom-select-wrapper {
+            position: relative;
+            flex-grow: 1;
+            margin-bottom: 8px;
+            font-size: 12px; 
+        }
+        .custom-select-trigger {
+            padding: 8px 10px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .custom-select-options {
+            position: absolute;
+            bottom: 100%; 
+            left: 0; right: 0;
+            background: rgba(30, 30, 30, 0.95);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.5); 
+            margin-bottom: 4px; 
+            z-index: 999;
+            display: none; 
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .custom-select-options.open { display: block; }
+        .custom-option {
+            padding: 8px 10px; color: white; cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 11px;
+        }
+        .custom-option:last-child { border-bottom: none; }
+        .custom-option:hover { background: rgba(255, 51, 68, 0.8); }
+
+        /* ==========================================
+           右上角：lil-gui 控制面板
+           ========================================== */
+        .lil-gui {
+            position: absolute !important; top: 20px !important; right: 20px !important; margin: 0 !important;
+            --background-color: rgba(0, 0, 0, 0.15) !important; --text-color: #ffffff !important; --title-background-color: rgba(0, 0, 0, 0.0) !important;
+            border-radius: 12px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; backdrop-filter: blur(2px) !important; transition: all 0.3s ease !important; box-shadow: none !important; pointer-events: auto; z-index: 10;
+        }
+        .lil-gui:hover {
+            --background-color: rgba(0, 0, 0, 0.75) !important; backdrop-filter: blur(6px) !important; border: 1px solid rgba(255, 255, 255, 0.3) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+        }
+        .lil-gui .title { border-radius: 12px 12px 0 0 !important; font-weight: bold !important; font-size: 14px !important; pointer-events: none !important; }
+        .lil-gui .name, .lil-gui .controller { color: #ffffff !important; }
+        .lil-gui .children { max-height: 0 !important; opacity: 0 !important; overflow: hidden !important; transition: all 0.4s ease !important; transform: translateY(-5px); }
+        .lil-gui:hover .children { max-height: 400px !important; opacity: 1 !important; transform: translateY(0); }
+
+        #gl-canvas { display: block; pointer-events: auto; position: absolute; top: 0; left: 0; z-index: 5; }
+        #visualizer { display: block; position: absolute; bottom: 0; left: 0; width: 100%; pointer-events: none; z-index: 2; }
+    </style>
+</head>
+<body>
+    <div id="bg-layer"></div>
+    <canvas id="visualizer"></canvas>
+
+    <div id="info">
+        <div class="info-title">
+            🍓 史萊姆選單 / Slime Menu
+            <span class="en-sub">(游標移入展開 / Hover to expand)</span>
+        </div>
+        <div class="info-content">
+            <p>操作：滑鼠點擊並<b>拖曳</b>拉扯！<span class="en-sub">Control: Click and drag to pull!</span></p>
+            <p>視角：在空白處拖曳滑鼠<span class="en-sub">View: Drag on empty space to rotate</span></p>
+            
+            <label for="bg-upload" class="upload-btn" style="width: 100%; text-align: center; box-sizing: border-box;">
+                🖼️ 選擇本地圖片當背景<span class="en-sub" style="margin-top: 2px;">Choose Local Background</span>
+            </label>
+            <input type="file" id="bg-upload" accept="image/*" style="display: none;">
+            
+            <hr style="border-color: rgba(255,255,255,0.2); margin: 12px 0;">
+            
+            <!-- 將文字改為金黃色 (#FFD700) -->
+            <p style="margin: 0 0 8px 0; font-weight: bold; color: #FFD700;">🎼 完美音質音樂 / HQ Music：</p>
+            
+            <div class="custom-select-wrapper">
+                <div class="custom-select-trigger" id="music-dropdown-trigger">
+                    <span id="music-dropdown-text">-- 選擇線上古典樂 (免下載) --</span>
+                    <span>▲</span> 
+                </div>
+                <div class="custom-select-options" id="music-dropdown-options">
+                    <div class="custom-option" data-value="">-- 停止播放 --</div>
+                    <div class="custom-option" data-value="https://upload.wikimedia.org/wikipedia/commons/2/24/Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg">1. 莫札特：弦樂小夜曲</div>
+                    <div class="custom-option" data-value="https://upload.wikimedia.org/wikipedia/commons/5/59/Kevin_MacLeod_-_Canon_in_D_Major.ogg?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=original">2. 帕海貝爾：卡農 (Canon in D)</div>
+                    <div class="custom-option" data-value="https://upload.wikimedia.org/wikipedia/commons/e/eb/Beethoven_Moonlight_1st_movement.ogg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original">3. 貝多芬：月光奏鳴曲</div>
+                    <div class="custom-option" data-value="https://upload.wikimedia.org/wikipedia/commons/d/d8/Johannes_Brahms_-_Ungarischer_Tanz_5_g-moll.ogg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original">4. 布拉姆斯：匈牙利舞曲</div>
+                    <div class="custom-option" data-value="https://upload.wikimedia.org/wikipedia/commons/b/be/Clair_de_lune_%28Claude_Debussy%29_Suite_bergamasque.ogg?utm_source=zh.wikipedia.org&utm_campaign=index&utm_content=original">5. 德布西：月光</div>
+                </div>
+            </div>
+
+            <label for="music-upload" class="upload-btn" style="width: 100%; text-align: center; box-sizing: border-box; background-color: #2b6cb0;">
+                🎵 或者：選擇本地音樂 (MP3/WAV)
+                <span class="en-sub" style="margin-top: 2px;">Or Choose Local Audio</span>
+            </label>
+            <input type="file" id="music-upload" accept="audio/*" style="display: none;">
+            
+            <audio id="audio-player" crossorigin="anonymous" controls loop controlsList="nodownload" style="width: 100%; height: 35px; margin-top: 10px; display: none; outline: none;"></audio>
+            
+            <div class="vis-controls" id="vis-controls" style="display: none;">
+                <p style="margin: 0 0 5px 0; font-weight: bold; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 3px;">🎵 頻譜跳動設定 Visualizer</p>
+                <label>顏色 (Color): <input type="color" id="vis-color" value="#ffffff" style="cursor: pointer;"></label>
+                <label>透明度 (Opacity): <input type="range" id="vis-opacity" min="0" max="1" step="0.1" value="0.5" style="width: 80px; cursor: pointer;"></label>
+                <!-- 【新增】：音量放大器拉桿 -->
+                <label>🔊 音量放大 (Boost): <input type="range" id="audio-volume" min="0" max="3" step="0.1" value="1.5" style="width: 80px; cursor: pointer;"></label>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+                "lil-gui": "https://unpkg.com/lil-gui@0.19.1/dist/lil-gui.esm.min.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import GUI from 'lil-gui';
+
+        // ==========================================
+        //  1. 下拉選單互動邏輯
+        // ==========================================
+        const trigger = document.getElementById('music-dropdown-trigger');
+        const optionsContainer = document.getElementById('music-dropdown-options');
+        const triggerText = document.getElementById('music-dropdown-text');
+        const audioPlayer = document.getElementById('audio-player');
+        const visControls = document.getElementById('vis-controls');
+        
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            optionsContainer.classList.toggle('open');
+        });
+
+        document.addEventListener('click', () => { optionsContainer.classList.remove('open'); });
+
+        document.querySelectorAll('.custom-option').forEach(option => {
+            option.addEventListener('click', function(e) {
+                const url = this.getAttribute('data-value');
+                triggerText.textContent = this.textContent;
+                optionsContainer.classList.remove('open');
+
+                if (url) {
+                    audioPlayer.src = url;
+                    audioPlayer.style.display = 'block';
+                } else {
+                    audioPlayer.pause();
+                    audioPlayer.style.display = 'none';
+                    visControls.style.display = 'none';
+                }
+            });
+        });
+
+        // ==========================================
+        //  2. 網頁音訊分析器與放大器 (GainNode)
+        // ==========================================
+        const musicUpload = document.getElementById('music-upload');
+        const visColorInput = document.getElementById('vis-color');
+        const visOpacityInput = document.getElementById('vis-opacity');
+        const audioVolumeInput = document.getElementById('audio-volume');
+        
+        let audioCtx, analyser, gainNode, dataArray, bufferLength;
+        let isAudioInitialized = false;
+
+        audioPlayer.addEventListener('play', () => {
+            if (!isAudioInitialized) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 建立分析器與放大器
+                analyser = audioCtx.createAnalyser();
+                gainNode = audioCtx.createGain(); 
+                
+                analyser.fftSize = 128; 
+                bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+                
+                const source = audioCtx.createMediaElementSource(audioPlayer);
+                
+                // 【核心修改】：串接音訊路徑: 原始音源 -> 放大器 -> 分析器 -> 喇叭輸出
+                source.connect(gainNode);
+                gainNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                
+                // 設定初始放大倍率 (預設為 1.5 倍)
+                gainNode.gain.value = audioVolumeInput.value;
+                
+                isAudioInitialized = true;
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            visControls.style.display = 'block';
+        });
+
+        // 監聽音量拉桿的變化，即時調整增益值
+        audioVolumeInput.addEventListener('input', (e) => {
+            if (gainNode) {
+                gainNode.gain.value = e.target.value;
+            }
+        });
+
+        musicUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                audioPlayer.src = e.target.result; 
+                audioPlayer.style.display = 'block';
+                triggerText.textContent = "-- 選擇線上古典樂 (免下載) --"; 
+                event.target.value = ''; 
+            };
+            reader.onerror = () => { alert("音樂檔案讀取失敗！"); }
+            reader.readAsDataURL(file); 
+        });
+
+        const visCanvas = document.getElementById('visualizer');
+        const visCtx = visCanvas.getContext('2d');
+        function resizeVisualizer() {
+            visCanvas.width = window.innerWidth;
+            visCanvas.height = window.innerHeight * 0.25; 
+        }
+        resizeVisualizer();
+
+
+        // ==========================================
+        //  3. 背景圖片上傳功能
+        // ==========================================
+        const bgUpload = document.getElementById('bg-upload');
+        const bgLayer = document.getElementById('bg-layer');
+        bgUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file || !file.type.match('image.*')) return;
+            const reader = new FileReader();
+            reader.onload = (e) => { bgLayer.style.backgroundImage = `url('${e.target.result}')`; };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        });
+
+        // ==========================================
+        //  4. 3D 史萊姆與物理引擎
+        // ==========================================
+        const params = { stiffness: 0.15, damping: 0.85, color: '#ff3344', size: 1.0, opacity: 0.95, pullRadius: 0.8, pullStrength: 0.5, hitboxScale: 1.25 };
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.5, 5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.domElement.id = 'gl-canvas';
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+
+        function createFaceTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(400, 450, 35, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(624, 450, 35, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(410, 440, 12, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(634, 440, 12, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255, 200, 200, 0.6)'; ctx.beginPath(); ctx.ellipse(320, 500, 40, 20, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(704, 500, 40, 20, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#111'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(512, 480, 30, 0, Math.PI, false); ctx.stroke();
+            const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; return texture;
+        }
+
+        const geometry = new THREE.SphereGeometry(1, 64, 64);
+        geometry.scale(1.4, 0.75, 1.0); 
+        const positionAttribute = geometry.attributes.position;
+        const originalPositions = new Float32Array(positionAttribute.array);
+        const velocities = new Float32Array(positionAttribute.count * 3);
+
+        const bodyMaterial = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(params.color), metalness: 0.1, roughness: 0.1, transmission: 0.9, ior: 1.33, thickness: 2.0, transparent: true, opacity: params.opacity });
+        const bodyMesh = new THREE.Mesh(geometry, bodyMaterial);
+        
+        const faceMaterial = new THREE.MeshBasicMaterial({ map: createFaceTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
+        const faceMesh = new THREE.Mesh(geometry, faceMaterial);
+
+        const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false }); 
+        const hitboxMesh = new THREE.Mesh(geometry, hitboxMaterial);
+        hitboxMesh.scale.setScalar(params.hitboxScale);
+
+        const slimeGroup = new THREE.Group();
+        slimeGroup.add(bodyMesh); slimeGroup.add(faceMesh); slimeGroup.add(hitboxMesh); slimeGroup.rotation.y = -Math.PI / 2;
+        scene.add(slimeGroup);
+
+        // ==========================================
+        //  5. 雙語 UI 控制面板
+        // ==========================================
+        const gui = new GUI({ title: '⚙️ 控制面板 / Controls' });
+        
+        gui.add(params, 'stiffness', 0.01, 0.5).name('回彈剛度 / Stiffness');
+        gui.add(params, 'damping', 0.5, 0.99).name('阻尼 / Damping');
+        gui.addColor(params, 'color').name('果凍色 / Jelly Color').onChange(c => bodyMaterial.color.set(c));
+        gui.add(params, 'size', 0.5, 2.5).name('大小 / Size').onChange(s => slimeGroup.scale.set(s, s, s));
+        gui.add(params, 'opacity', 0.1, 1.0).name('透明度 / Opacity').onChange(o => bodyMaterial.opacity = o);
+        gui.add(params, 'pullRadius', 0.2, 1.5).name('拉扯範圍 / Pull Radius');
+        gui.add(params, 'hitboxScale', 1.0, 2.0).name('容錯範圍 / Hitbox').onChange(s => hitboxMesh.scale.setScalar(s));
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isDragging = false, dragTarget = new THREE.Vector3(), hitPoint = new THREE.Vector3(), dragPlane = new THREE.Plane(), planeIntersect = new THREE.Vector3();
+
+        window.addEventListener('pointerdown', (event) => {
+            if (event.target.closest('#info') || event.target.closest('.lil-gui') || event.target.tagName.toLowerCase() === 'audio') return;
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            
+            const intersects = raycaster.intersectObject(hitboxMesh);
+            if (intersects.length > 0) {
+                isDragging = true; controls.enabled = false; document.body.style.cursor = 'grabbing';
+                const bodyIntersects = raycaster.intersectObject(bodyMesh);
+                if(bodyIntersects.length > 0) hitPoint.copy(bodyIntersects[0].point);
+                else hitPoint.copy(intersects[0].point).lerp(slimeGroup.position, 1 - 1/params.hitboxScale); 
+                dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), hitPoint);
+            }
+        });
+
+        window.addEventListener('pointermove', (event) => {
+            if (!isDragging) return;
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) dragTarget.copy(planeIntersect);
+        });
+
+        window.addEventListener('pointerup', () => { isDragging = false; controls.enabled = true; document.body.style.cursor = 'default'; });
+
+        function updatePhysics() {
+            const positions = geometry.attributes.position.array;
+            const localHitPoint = hitPoint.clone().applyMatrix4(bodyMesh.matrixWorld.invert());
+            const localDragTarget = dragTarget.clone().applyMatrix4(bodyMesh.matrixWorld.invert());
+            const pullDelta = new THREE.Vector3().subVectors(localDragTarget, localHitPoint);
+
+            for (let i = 0; i < positions.length; i += 3) {
+                const currentPos = new THREE.Vector3(positions[i], positions[i+1], positions[i+2]);
+                const originalPos = new THREE.Vector3(originalPositions[i], originalPositions[i+1], originalPositions[i+2]);
+                let vel = new THREE.Vector3(velocities[i], velocities[i+1], velocities[i+2]);
+
+                if (isDragging) {
+                    const distToHit = originalPos.distanceTo(localHitPoint);
+                    if (distToHit < params.pullRadius) {
+                        const influence = 1 - (distToHit / params.pullRadius);
+                        const targetPos = originalPos.clone().add(pullDelta.clone().multiplyScalar(influence * params.pullStrength));
+                        vel.add(new THREE.Vector3().subVectors(targetPos, currentPos).multiplyScalar(0.1));
+                    }
+                }
+                vel.add(new THREE.Vector3().subVectors(originalPos, currentPos).multiplyScalar(params.stiffness));
+                vel.multiplyScalar(params.damping);
+
+                velocities[i] = vel.x; velocities[i+1] = vel.y; velocities[i+2] = vel.z;
+                positions[i] += vel.x; positions[i+1] += vel.y; positions[i+2] += vel.z;
+            }
+            geometry.attributes.position.needsUpdate = true;
+            geometry.computeVertexNormals();
+        }
+
+        function drawVisualizer() {
+            visCtx.clearRect(0, 0, visCanvas.width, visCanvas.height);
+            if (isAudioInitialized && !audioPlayer.paused) {
+                analyser.getByteFrequencyData(dataArray);
+                visCtx.fillStyle = visColorInput.value;
+                visCtx.globalAlpha = visOpacityInput.value;
+                const barWidth = (visCanvas.width / bufferLength);
+                let x = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    const percent = dataArray[i] / 255;
+                    const barHeight = percent * visCanvas.height;
+                    visCtx.fillRect(x, visCanvas.height - barHeight, barWidth - 2, barHeight);
+                    x += barWidth;
+                }
+                visCtx.globalAlpha = 1.0; 
+            }
+        }
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            updatePhysics();
+            drawVisualizer(); 
+
+            if (!isDragging) {
+                const breathe = 1 + Math.sin(clock.getElapsedTime() * 3) * 0.02;
+                slimeGroup.scale.set(params.size / Math.sqrt(breathe), params.size * breathe, params.size / Math.sqrt(breathe));
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => { 
+            camera.aspect = window.innerWidth / window.innerHeight; 
+            camera.updateProjectionMatrix(); 
+            renderer.setSize(window.innerWidth, window.innerHeight); 
+            resizeVisualizer();
+        });
+        
+        animate();
+    </script>
+</body>
+</html>
