@@ -36,6 +36,7 @@
   }
   #panel.collapsed #controls, #panel.collapsed #footer { display: none; }
   #panelHead {
+    flex-shrink: 0;
     display: flex; align-items: center; justify-content: space-between;
     padding: 10px 12px; cursor: pointer;
     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
@@ -47,9 +48,13 @@
     padding: 2px 8px; font-size: 11px; cursor: pointer; color: #3a3228;
   }
   #controls {
-    overflow-y: auto; padding: 4px 12px 8px;
+    flex: 1 1 auto;                /* 允許參數區縮小，把空間讓給固定在底部的按鈕 */
+    min-height: 0;                 /* 讓 flex 子元素可以小於內容高度，才會出現捲軸 */
+    overflow-y: auto;
+    padding: 4px 12px 8px;
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;  /* 捲到底時不帶動整個頁面 */
   }
   .sec-title {
     margin: 12px 0 4px; padding-bottom: 3px;
@@ -76,6 +81,7 @@
     touch-action: pan-y;
   }
   #footer {
+    flex-shrink: 0;
     display: flex; gap: 8px; padding: 10px 12px;
     border-top: 1px solid rgba(0, 0, 0, 0.08);
   }
@@ -97,8 +103,9 @@
 <body>
 
 <div id="info">
-  <h3>寫實 3D 蘋果 <span style="font-size:12px;opacity:.7">Realistic 3D Apple</span></h3>
-  <p>拖曳旋轉・滾輪縮放 ｜ Drag to rotate · Scroll to zoom</p>
+  <h3>寫實3D蘋果 <span style="font-size:12px;opacity:.7">3D Apple</span></h3>
+  <p>拖曳旋轉・滾輪縮放</p>
+  <p>Drag-rotate•Scroll-zoom</p>
 </div>
 
 <div id="panel">
@@ -442,7 +449,7 @@ function buildTextures(W, H) {
   appleMat.map = colorTex;
   appleMat.bumpMap = bumpTex;
   appleMat.needsUpdate = true;
-  statusEl.textContent = `貼圖 ${W}×${H}，${Math.round(performance.now() - t0)} ms ｜ Texture ${W}×${H}`;
+  statusEl.textContent = `Texture ${W}×${H}，${Math.round(performance.now() - t0)} ms`;
 }
 
 // 拖動時以低解析度即時預覽（節流），停止後以高解析度重繪（防抖）
