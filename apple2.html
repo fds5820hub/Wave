@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>寫實 3D 蘋果 · Realistic 3D Apple</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(circle at 50% 35%, #f6f1e8 0%, #d9d2c5 60%, #b9b1a2 100%);
+    font-family: "PingFang TC", "Microsoft JhengHei", "Segoe UI", sans-serif;
+  }
+  canvas { display: block; }
+
+  #info {
+    position: absolute; top: 16px; left: 18px;
+    color: #4a4236; pointer-events: none;
+  }
+  #info h3 { margin: 0 0 2px; font-weight: 600; font-size: 18px; }
+  #info p  { margin: 0; font-size: 12px; opacity: 0.75; }
+
+  #panel {
+    position: absolute; top: 16px; right: 16px;
+    width: 200px; max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+    display: flex; flex-direction: column;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 14px;
+    box-shadow: 0 6px 24px rgba(60, 45, 30, 0.10);
+    color: #3a3228;
+    font-size: 12px;
+    user-select: none;
+  }
+  #panel.collapsed #controls, #panel.collapsed #footer { display: none; }
+  #panelHead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; cursor: pointer;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  #panelHead b { font-size: 13px; }
+  #panelHead .en { font-size: 11px; opacity: 0.7; margin-left: 4px; }
+  #toggleBtn {
+    border: none; background: rgba(255,255,255,0.7); border-radius: 6px;
+    padding: 2px 8px; font-size: 11px; cursor: pointer; color: #3a3228;
+  }
+  #controls {
+    overflow-y: auto; padding: 4px 12px 8px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sec-title {
+    margin: 12px 0 4px; padding-bottom: 3px;
+    font-size: 12px; color: #6b5a40;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .sec-title .en { font-size: 10.5px; opacity: 0.65; margin-left: 4px; }
+  .row { margin: 7px 0 2px; }
+  .lbl {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 6px; line-height: 1.3;
+  }
+  .lbl > span:first-child { min-width: 0; }
+  .lbl .zh { font-weight: 600; }
+  .lbl .en { font-size: 10.5px; opacity: 0.65; margin-left: 4px; }
+  .val {
+    font-variant-numeric: tabular-nums; font-size: 11px;
+    background: rgba(255,255,255,0.6); padding: 1px 6px; border-radius: 4px;
+    min-width: 38px; text-align: right; flex-shrink: 0;
+  }
+  input[type=range] {
+    width: 100%; margin: 4px 0 0; accent-color: #a3202a; cursor: pointer;
+    /* 垂直方向交給瀏覽器捲動，水平方向才由滑桿接收 */
+    touch-action: pan-y;
+  }
+  #footer {
+    display: flex; gap: 8px; padding: 10px 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  #footer button {
+    flex: 1; border: none; border-radius: 8px; padding: 7px 0;
+    background: rgba(163, 32, 42, 0.85); color: #fff;
+    font-size: 12px; cursor: pointer;
+  }
+  #footer button.alt { background: rgba(255,255,255,0.7); color: #3a3228; }
+  #footer button:hover { filter: brightness(1.08); }
+  #texStatus {
+    position: absolute; bottom: 12px; left: 18px;
+    font-size: 11px; color: #4a4236; opacity: 0.7; pointer-events: none;
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<div id="info">
+  <h3>寫實 3D 蘋果 <span style="font-size:12px;opacity:.7">Realistic 3D Apple</span></h3>
+  <p>拖曳旋轉・滾輪縮放 ｜ Drag to rotate · Scroll to zoom</p>
+</div>
+
+<div id="panel">
+  <div id="panelHead">
+    <span><b>參數調整</b><span class="en">Parameters</span></span>
+    <button id="toggleBtn">收合 / Hide</button>
+  </div>
+  <div id="controls"></div>
+  <div id="footer">
+    <button class="alt" id="resetBtn">重設 / Reset</button>
+    <button id="shotBtn">截圖 / Snapshot</button>
+  </div>
+</div>
+
+<div id="texStatus"></div>
+
+<script>
+// ============================================================
+// 0. 常數與參數定義
+// ============================================================
+const R = 2; // 蘋果半徑
+
+// upd: 'shape' 重建幾何 | 'tex' 重繪貼圖 | 'mat' 更新材質 | 'light' 更新燈光
+const SCHEMA = [
+  {
+    zh: '形狀', en: 'Shape',
+    items: [
+      { k: 'widthTaper',   zh: '上寬下窄',   en: 'Shoulder taper',      min: 0,    max: 0.25, step: 0.005, def: 0.09,  upd: 'shape' },
+      { k: 'lobes',        zh: '五瓣肩部',   en: 'Five-lobe shoulders', min: 0,    max: 0.12, step: 0.001, def: 0.045, upd: 'shape' },
+      { k: 'asym',         zh: '不對稱',     en: 'Asymmetry',           min: 0,    max: 0.08, step: 0.001, def: 0.025, upd: 'shape' },
+      { k: 'squashTop',    zh: '頂部高度',   en: 'Top height',          min: 0.6,  max: 1.0,  step: 0.01,  def: 0.88,  upd: 'shape' },
+      { k: 'squashBot',    zh: '底部高度',   en: 'Bottom height',       min: 0.7,  max: 1.1,  step: 0.01,  def: 0.94,  upd: 'shape' },
+      { k: 'stemDip',      zh: '梗洞深度',   en: 'Stem cavity depth',   min: 0,    max: 0.8,  step: 0.01,  def: 0.42,  upd: 'shape' },
+      { k: 'stemDipWidth', zh: '梗洞寬度',   en: 'Stem cavity width',   min: 0.02, max: 0.2,  step: 0.005, def: 0.06,  upd: 'shape' },
+      { k: 'calyxDip',     zh: '花萼凹陷',   en: 'Calyx depth',         min: 0,    max: 0.35, step: 0.01,  def: 0.14,  upd: 'shape' },
+      { k: 'stemThick',    zh: '梗粗細',     en: 'Stem thickness',      min: 0.02, max: 0.12, step: 0.005, def: 0.05,  upd: 'shape' },
+      { k: 'stemBend',     zh: '梗彎曲',     en: 'Stem bend',           min: 0,    max: 0.6,  step: 0.01,  def: 0.3,   upd: 'shape' },
+    ]
+  },
+  {
+    zh: '果皮顏色', en: 'Skin color',
+    items: [
+      { k: 'redAmount',     zh: '紅色覆蓋',   en: 'Red coverage',               min: 0,  max: 1,  step: 0.01, def: 0.5,  upd: 'tex' },
+      { k: 'topBias',       zh: '頂部偏紅',   en: 'Top redness',                min: 0,  max: 0.4, step: 0.01, def: 0.18, upd: 'tex' },
+      { k: 'stripeFreq',    zh: '條紋密度',   en: 'Stripe density',             min: 3,  max: 14, step: 0.5,  def: 7,    upd: 'tex' },
+      { k: 'deepShade',     zh: '深紅陰影',   en: 'Deep red shading',           min: 0,  max: 1,  step: 0.01, def: 0.5,  upd: 'tex' },
+      { k: 'lentDensity',   zh: '果點密度',   en: 'Lenticel density',           min: 20, max: 70, step: 1,    def: 42,   upd: 'tex' },
+      { k: 'lentChance',    zh: '果點數量',   en: 'Lenticel count',             min: 0,  max: 1,  step: 0.01, def: 0.15, upd: 'tex' },
+      { k: 'lentAmount',    zh: '果點顯色',   en: 'Lenticel color',             min: 0,  max: 1,  step: 0.01, def: 0.3,  upd: 'tex' },
+      { k: 'lentTone',      zh: '果點色調',   en: 'Lenticel tone (light→dark)', min: 0,  max: 1,  step: 0.01, def: 0.85, upd: 'tex' },
+      { k: 'lentBottomDark',zh: '底部果點加深', en: 'Bottom lenticel darkening', min: 0,  max: 1,  step: 0.01, def: 0.5,  upd: 'tex' },
+    ]
+  },
+  {
+    zh: '凹凸與紋理', en: 'Bump & texture',
+    items: [
+      { k: 'bumpNoise', zh: '果皮紋理', en: 'Skin noise',     min: 0, max: 0.2, step: 0.005, def: 0.06, upd: 'tex' },
+      { k: 'lentDepth', zh: '果點凹陷', en: 'Lenticel depth', min: 0, max: 0.7, step: 0.01,  def: 0.35, upd: 'tex' },
+      { k: 'bumpScale', zh: '凹凸強度', en: 'Bump strength',  min: 0, max: 1.5, step: 0.01,  def: 0.5,  upd: 'mat' },
+    ]
+  },
+  {
+    zh: '材質', en: 'Material',
+    items: [
+      { k: 'roughness',          zh: '粗糙度',     en: 'Roughness',              min: 0, max: 1, step: 0.01, def: 0.42, upd: 'mat' },
+      { k: 'clearcoat',          zh: '蠟質層',     en: 'Wax clearcoat',          min: 0, max: 1, step: 0.01, def: 0.7,  upd: 'mat' },
+      { k: 'clearcoatRoughness', zh: '蠟層粗糙度', en: 'Clearcoat roughness',    min: 0, max: 1, step: 0.01, def: 0.15, upd: 'mat' },
+      { k: 'envMapIntensity',    zh: '環境反射',   en: 'Environment reflection', min: 0, max: 2, step: 0.01, def: 0.9,  upd: 'mat' },
+    ]
+  },
+  {
+    zh: '燈光與視角', en: 'Light & view',
+    items: [
+      { k: 'exposure', zh: '曝光',     en: 'Exposure',    min: 0.4,    max: 2.0,   step: 0.01,   def: 1.0,   upd: 'light' },
+      { k: 'keyLight', zh: '主光強度', en: 'Key light',   min: 0,      max: 4,     step: 0.05,   def: 2.0,   upd: 'light' },
+      { k: 'spin',     zh: '自動旋轉', en: 'Auto-rotate', min: 0,      max: 0.02,  step: 0.0005, def: 0.003, upd: 'light' },
+    ]
+  },
+];
+
+const DEFAULTS = {};
+SCHEMA.forEach(sec => sec.items.forEach(it => DEFAULTS[it.k] = it.def));
+const P = { ...DEFAULTS };
+
+// ============================================================
+// 1. 工具函式：3D 值噪聲 + FBM
+// ============================================================
+function hash3(x, y, z) {
+  const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return h - Math.floor(h);
+}
+function fade(t) { return t * t * (3 - 2 * t); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function sstep(a, b, x) {
+  const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
+  return t * t * (3 - 2 * t);
+}
+function vnoise(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = fade(xf), v = fade(yf), w = fade(zf);
+  const c = (dx, dy, dz) => hash3(xi + dx, yi + dy, zi + dz);
+  const x00 = lerp(c(0,0,0), c(1,0,0), u);
+  const x10 = lerp(c(0,1,0), c(1,1,0), u);
+  const x01 = lerp(c(0,0,1), c(1,0,1), u);
+  const x11 = lerp(c(0,1,1), c(1,1,1), u);
+  return lerp(lerp(x00, x10, v), lerp(x01, x11, v), w);
+}
+function fbm(x, y, z, octaves = 4) {
+  let sum = 0, amp = 0.5, freq = 1, norm = 0;
+  for (let i = 0; i < octaves; i++) {
+    sum += amp * vnoise(x * freq, y * freq, z * freq);
+    norm += amp;
+    freq *= 2.02;
+    amp *= 0.5;
+  }
+  return sum / norm;
+}
+
+// ============================================================
+// 2. 場景、相機、渲染器
+// ============================================================
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 0.4, 7.5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = P.exposure;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.insertBefore(renderer.domElement, document.getElementById('info'));
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.minDistance = 3;
+controls.maxDistance = 15;
+controls.target.set(0, -0.1, 0);
+
+// ============================================================
+// 3. 環境反射（給 clearcoat 使用）
+// ============================================================
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0x808080);
+const panelMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+[
+  { size: [6, 6], pos: [ 5, 6,  5] },
+  { size: [3, 8], pos: [-6, 2,  4] },
+  { size: [8, 3], pos: [ 0, 8, -4] },
+].forEach(p => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(p.size[0], p.size[1]), panelMat);
+  m.position.set(...p.pos);
+  m.lookAt(0, 0, 0);
+  envScene.add(m);
+});
+const cubeRT = new THREE.WebGLCubeRenderTarget(256, {
+  generateMipmaps: true,
+  minFilter: THREE.LinearMipmapLinearFilter,
+});
+new THREE.CubeCamera(0.1, 100, cubeRT).update(renderer, envScene);
+
+// ============================================================
+// 4. 蘋果材質（貼圖稍後產生）
+// ============================================================
+const appleMat = new THREE.MeshPhysicalMaterial({
+  roughness: P.roughness,
+  metalness: 0.0,
+  clearcoat: P.clearcoat,
+  clearcoatRoughness: P.clearcoatRoughness,
+  envMap: cubeRT.texture,
+  envMapIntensity: P.envMapIntensity,
+  bumpScale: P.bumpScale,
+});
+
+// ============================================================
+// 5. 幾何：依參數從球體變形
+// ============================================================
+function buildAppleGeometry() {
+  const g = new THREE.SphereGeometry(1, 160, 160);
+  const pos = g.attributes.position;
+
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i);
+    let y = pos.getY(i);
+    let z = pos.getZ(i);
+
+    const yOrig = y;
+    const d0 = Math.sqrt(x * x + z * z);
+    const theta = Math.atan2(z, x);
+
+    // (a) 上寬下窄
+    const w = 1 + P.widthTaper * y;
+    x *= w; z *= w;
+
+    // (b) 五瓣肩部
+    const lobe = 1 + P.lobes * Math.cos(5 * theta) * sstep(0.25, 0.85, yOrig);
+    x *= lobe; z *= lobe;
+
+    // (c) 不對稱
+    const asym = 1 + P.asym * Math.sin(theta + 0.7) * sstep(-0.5, 0.5, yOrig);
+    x *= asym; z *= asym;
+
+    // (d) 垂直壓縮
+    y = yOrig > 0 ? yOrig * P.squashTop : yOrig * P.squashBot;
+
+    // (e) 梗洞
+    const topDip = Math.exp(-(d0 * d0) / P.stemDipWidth);
+    y -= P.stemDip * topDip * sstep(0.35, 0.9, yOrig);
+
+    // (f) 花萼凹陷
+    if (yOrig < 0) {
+      const botDip = Math.exp(-(d0 * d0) / 0.05);
+      y += P.calyxDip * botDip;
+    }
+
+    pos.setXYZ(i, x, y, z);
+  }
+
+  g.scale(R, R, R);
+  g.computeVertexNormals();
+  return g;
+}
+
+// ============================================================
+// 6. 程序化貼圖：顏色（條紋紅 + 果點）與凹凸
+// ============================================================
+function paintAppleTextures(W, H) {
+  const cColor = document.createElement('canvas');
+  const cBump  = document.createElement('canvas');
+  cColor.width = cBump.width = W;
+  cColor.height = cBump.height = H;
+
+  const ctxC = cColor.getContext('2d');
+  const ctxB = cBump.getContext('2d');
+  const imgC = ctxC.createImageData(W, H);
+  const imgB = ctxB.createImageData(W, H);
+  const dC = imgC.data;
+  const dB = imgB.data;
+
+  const yellow = [0.87, 0.80, 0.38];
+  const red    = [0.66, 0.03, 0.05];
+  const deep   = [0.34, 0.01, 0.03];
+
+  // 果點顏色：由暗黃褐（tone=0）漸變到更暗的褐色（tone=1）
+  const paleLight = [0.62, 0.54, 0.32];
+  const paleDark  = [0.30, 0.22, 0.08];
+  const pale = [0, 1, 2].map(k => lerp(paleLight[k], paleDark[k], P.lentTone));
+
+  // 底部果點的加深目標色（越靠底部越接近此色）
+  const lentBottomCol = [0.16, 0.10, 0.04];
+
+  // 紅色覆蓋：0.5 為預設，偏移量以此為中心
+  const covOffset = (P.redAmount - 0.5) * 0.4;
+  const edgeLo = 0.48 - covOffset;
+  const edgeHi = 0.78 - covOffset;
+
+  for (let j = 0; j < H; j++) {
+    const v = 1 - j / H;
+    const y = -Math.cos(Math.PI * v);
+    const s = Math.sqrt(Math.max(0, 1 - y * y));
+
+    // 下半部果點加深程度：y 越接近底部（-1）越深
+    const bottomDark = sstep(0.0, -0.7, y) * P.lentBottomDark;
+
+    for (let i = 0; i < W; i++) {
+      const phi = 2 * Math.PI * (i / W);
+      const x = -Math.cos(phi) * s;
+      const z =  Math.sin(phi) * s;
+
+      // 條紋與覆蓋率
+      const stripe = fbm(x * P.stripeFreq + 11, y * 1.3, z * P.stripeFreq + 3, 4);
+      const cover  = fbm(x * 1.6 + 5, y * 1.6, z * 1.6, 3);
+      const topBias = sstep(-0.1, 0.9, y) * P.topBias;
+
+      const r = sstep(edgeLo, edgeHi, stripe * 0.6 + cover * 0.4 + topBias - 0.02);
+      const deepAmt = sstep(0.62, 0.9, stripe) * r * P.deepShade;
+
+      let cr = yellow[0] + (red[0] - yellow[0]) * r;
+      let cg = yellow[1] + (red[1] - yellow[1]) * r;
+      let cb = yellow[2] + (red[2] - yellow[2]) * r;
+      cr += (deep[0] - cr) * deepAmt;
+      cg += (deep[1] - cg) * deepAmt;
+      cb += (deep[2] - cb) * deepAmt;
+
+      // 果點（下半部的顏色會比上半部更暗）
+      const px = x * P.lentDensity, py = y * P.lentDensity, pz = z * P.lentDensity;
+      const cx = Math.floor(px), cy = Math.floor(py), cz = Math.floor(pz);
+      const fx = px - cx, fy = py - cy, fz = pz - cz;
+      const cellHash = hash3(cx, cy, cz);
+      const jx = hash3(cx + 1.3, cy, cz) * 0.4 + 0.3;
+      const jy = hash3(cx, cy + 2.7, cz) * 0.4 + 0.3;
+      const jz = hash3(cx, cy, cz + 4.1) * 0.4 + 0.3;
+      const dd = Math.hypot(fx - jx, fy - jy, fz - jz);
+      const present = cellHash > (1 - P.lentChance);
+      const lentDot = present ? (1 - sstep(0.05, 0.22, dd)) * 0.85 : 0;
+
+      const palePx = [0, 1, 2].map(k => lerp(pale[k], lentBottomCol[k], bottomDark));
+      cr += (palePx[0] - cr) * lentDot * P.lentAmount;
+      cg += (palePx[1] - cg) * lentDot * P.lentAmount;
+      cb += (palePx[2] - cb) * lentDot * P.lentAmount;
+
+      const idx = (j * W + i) * 4;
+      dC[idx]     = Math.min(255, Math.max(0, cr * 255));
+      dC[idx + 1] = Math.min(255, Math.max(0, cg * 255));
+      dC[idx + 2] = Math.min(255, Math.max(0, cb * 255));
+      dC[idx + 3] = 255;
+
+      // 凹凸
+      const bumpNoise = fbm(x * 18, y * 18, z * 18, 3);
+      const h = 0.5 + P.bumpNoise * (bumpNoise - 0.5) - P.lentDepth * lentDot;
+      const hv = Math.min(255, Math.max(0, h * 255));
+      dB[idx]     = hv;
+      dB[idx + 1] = hv;
+      dB[idx + 2] = hv;
+      dB[idx + 3] = 255;
+    }
+  }
+
+  ctxC.putImageData(imgC, 0, 0);
+  ctxB.putImageData(imgB, 0, 0);
+
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+  const colorTex = new THREE.CanvasTexture(cColor);
+  colorTex.encoding = THREE.sRGBEncoding;
+  colorTex.anisotropy = maxAniso;
+  const bumpTex = new THREE.CanvasTexture(cBump);
+  bumpTex.anisotropy = maxAniso;
+
+  return { colorTex, bumpTex };
+}
+
+function buildTextures(W, H) {
+  const t0 = performance.now();
+  const { colorTex, bumpTex } = paintAppleTextures(W, H);
+  if (appleMat.map) appleMat.map.dispose();
+  if (appleMat.bumpMap) appleMat.bumpMap.dispose();
+  appleMat.map = colorTex;
+  appleMat.bumpMap = bumpTex;
+  appleMat.needsUpdate = true;
+  statusEl.textContent = `貼圖 ${W}×${H}，${Math.round(performance.now() - t0)} ms ｜ Texture ${W}×${H}`;
+}
+
+// 拖動時以低解析度即時預覽（節流），停止後以高解析度重繪（防抖）
+let previewPending = false;
+let finalTimer = null;
+function scheduleTex() {
+  if (!previewPending) {
+    previewPending = true;
+    setTimeout(() => { previewPending = false; buildTextures(512, 256); }, 120);
+  }
+  clearTimeout(finalTimer);
+  finalTimer = setTimeout(() => buildTextures(1024, 512), 600);
+}
+
+// ============================================================
+// 7. 梗（纖維凹凸 + 皺褶顏色 + 根部隆起 + 尖端變細）與花萼
+// ============================================================
+// 同一組噪聲同時產生「凹凸」與「顏色」：皺褶處較暗，基底色則較淺
+function makeStemTextures() {
+  const W = 128, H = 256;
+  const cBump  = document.createElement('canvas');
+  const cColor = document.createElement('canvas');
+  cBump.width = cColor.width = W;
+  cBump.height = cColor.height = H;
+  const ctxB = cBump.getContext('2d');
+  const ctxC = cColor.getContext('2d');
+  const imgB = ctxB.createImageData(W, H);
+  const imgC = ctxC.createImageData(W, H);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      // 沿著梗的方向拉長，形成纖維條紋
+      const n = fbm(x * 0.35, y * 0.03, 0.5, 3);
+      const idx = (y * W + x) * 4;
+
+      // 凹凸
+      const v = Math.floor(90 + n * 165);
+      imgB.data[idx] = imgB.data[idx + 1] = imgB.data[idx + 2] = v;
+      imgB.data[idx + 3] = 255;
+
+      // 顏色：皺褶（噪聲低值）較暗，約為基底色的 55% 到 100%
+      const shade = 0.55 + 0.45 * sstep(0.35, 0.65, n);
+      const c = Math.floor(255 * shade);
+      imgC.data[idx] = imgC.data[idx + 1] = imgC.data[idx + 2] = c;
+      imgC.data[idx + 3] = 255;
+    }
+  }
+  ctxB.putImageData(imgB, 0, 0);
+  ctxC.putImageData(imgC, 0, 0);
+
+  const bump = new THREE.CanvasTexture(cBump);
+  const map = new THREE.CanvasTexture(cColor);
+  map.encoding = THREE.sRGBEncoding;
+  [bump, map].forEach(t => {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(3, 1);
+  });
+  return { bump, map };
+}
+
+const stemTex = makeStemTextures();
+const stemMat = new THREE.MeshStandardMaterial({
+  color: 0x7a5530,          // 基底褐色（比皺褶淺）
+  map: stemTex.map,         // 皺褶處由貼圖加深
+  roughness: 0.85,
+  bumpMap: stemTex.bump,
+  bumpScale: 0.6,
+});
+const calyxMat = new THREE.MeshStandardMaterial({ color: 0x2a1c10, roughness: 0.8 });
+
+function shapeTopY() { return (P.squashTop - P.stemDip) * R; }
+function shapeBotY() { return (-P.squashBot + P.calyxDip) * R; }
+
+function makeStem(topY) {
+  const k = P.stemBend * 3;
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.00,        topY - 0.12, 0.00),
+    new THREE.Vector3(0.03 * k,    topY + 0.25, 0.00),
+    new THREE.Vector3(0.12 * k,    topY + 0.50, 0.02),
+    new THREE.Vector3(0.28 * k,    topY + 0.72, 0.04),
+  ]);
+
+  const segs = 60, radial = 16;
+  const geo = new THREE.TubeGeometry(curve, segs, 1, radial, false);
+  const pos = geo.attributes.position;
+  const base = P.stemThick;
+
+  // 半徑沿長度變化：根部略粗且有隆起，尖端變細
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const center = curve.getPointAt(t);
+    const r = base * (1 - 0.45 * t) * (1 + 0.35 * Math.exp(-t * 14));
+    for (let j = 0; j <= radial; j++) {
+      const idx = i * (radial + 1) + j;
+      const ox = pos.getX(idx) - center.x;
+      const oy = pos.getY(idx) - center.y;
+      const oz = pos.getZ(idx) - center.z;
+      pos.setXYZ(idx, center.x + ox * r, center.y + oy * r, center.z + oz * r);
+    }
+  }
+  geo.computeVertexNormals();
+
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(geo, stemMat);
+  body.castShadow = true;
+  group.add(body);
+
+  // 尖端圓頭（避免管子末端中空）
+  const tipPt = curve.getPointAt(1);
+  const tipR = base * 0.55;
+  const tipCap = new THREE.Mesh(new THREE.SphereGeometry(tipR, 16, 12), stemMat);
+  tipCap.position.copy(tipPt);
+  tipCap.castShadow = true;
+  group.add(tipCap);
+
+  return group;
+}
+
+const calyxGroup = new THREE.Group();
+for (let n = 0; n < 5; n++) {
+  const g = new THREE.Group();
+  g.rotation.y = (n / 5) * Math.PI * 2;
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.28, 8), calyxMat);
+  cone.position.set(0.14, 0, 0);
+  cone.rotation.z = -Math.PI * 0.85;
+  cone.castShadow = true;
+  g.add(cone);
+  calyxGroup.add(g);
+}
+
+// ============================================================
+// 8. 蘋果主體與組合
+// ============================================================
+const apple = new THREE.Mesh(buildAppleGeometry(), appleMat);
+apple.castShadow = true;
+apple.receiveShadow = true;
+
+let stem = makeStem(shapeTopY());
+calyxGroup.position.y = shapeBotY() - 0.06;
+
+const appleGroup = new THREE.Group();
+appleGroup.add(apple);
+appleGroup.add(stem);
+appleGroup.add(calyxGroup);
+scene.add(appleGroup);
+
+function rebuildShape() {
+  apple.geometry.dispose();
+  apple.geometry = buildAppleGeometry();
+
+  appleGroup.remove(stem);
+  stem.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  stem = makeStem(shapeTopY());
+  appleGroup.add(stem);
+
+  calyxGroup.position.y = shapeBotY() - 0.06;
+}
+
+// ============================================================
+// 9. 燈光與地面陰影
+// ============================================================
+scene.add(new THREE.HemisphereLight(0xfff8ee, 0x8a7a66, 0.6));
+
+const key = new THREE.DirectionalLight(0xffffff, P.keyLight);
+key.position.set(4, 6, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.bias = -0.0005;
+key.shadow.camera.left = -4;
+key.shadow.camera.right = 4;
+key.shadow.camera.top = 4;
+key.shadow.camera.bottom = -4;
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 20;
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xfff0e0, 0.5);
+fill.position.set(-5, 2, -3);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffe0c0, 0.8);
+rim.position.set(-2, 3, -6);
+scene.add(rim);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.ShadowMaterial({ opacity: 0.22 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -2.0;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ============================================================
+// 10. 套用參數
+// ============================================================
+function applyMaterial() {
+  appleMat.roughness = P.roughness;
+  appleMat.clearcoat = P.clearcoat;
+  appleMat.clearcoatRoughness = P.clearcoatRoughness;
+  appleMat.envMapIntensity = P.envMapIntensity;
+  appleMat.bumpScale = P.bumpScale;
+}
+function applyLight() {
+  renderer.toneMappingExposure = P.exposure;
+  key.intensity = P.keyLight;
+}
+
+// ============================================================
+// 11. 介面：依 SCHEMA 自動產生滑桿
+// ============================================================
+const statusEl = document.getElementById('texStatus');
+const controlsEl = document.getElementById('controls');
+const inputRefs = {};
+
+function decimalsOf(step) {
+  return Math.max(0, -Math.floor(Math.log10(step)));
+}
+
+// 觸控防誤觸：手指剛接觸時不改值；只有水平拖動才開始調整，垂直移動視為捲動
+function guardTouch(input, onAccept) {
+  const gate = { active: true, lastVal: input.value, sx: 0, sy: 0 };
+
+  input.addEventListener('pointerdown', e => {
+    gate.lastVal = input.value;
+    if (e.pointerType === 'touch') {
+      gate.active = false;
+      gate.sx = e.clientX;
+      gate.sy = e.clientY;
+    } else {
+      gate.active = true;
+    }
+  });
+
+  input.addEventListener('pointermove', e => {
+    if (gate.active || e.pointerType !== 'touch') return;
+    const dx = Math.abs(e.clientX - gate.sx);
+    const dy = Math.abs(e.clientY - gate.sy);
+    if (dx > 8 && dx > dy) gate.active = true;   // 水平拖動：開始調整
+  });
+
+  const release = () => { gate.active = true; };
+  input.addEventListener('pointerup', release);
+  input.addEventListener('pointercancel', () => {
+    // 手勢被瀏覽器接管（捲動）：還原到接觸前的數值
+    if (!gate.active) input.value = gate.lastVal;
+    gate.active = true;
+  });
+
+  input.addEventListener('input', () => {
+    if (!gate.active) {
+      input.value = gate.lastVal;   // 尚未確認為拖動，忽略此次改值
+      return;
+    }
+    gate.lastVal = input.value;
+    onAccept();
+  });
+}
+
+SCHEMA.forEach(sec => {
+  const title = document.createElement('div');
+  title.className = 'sec-title';
+  title.innerHTML = `<b>${sec.zh}</b><span class="en">${sec.en}</span>`;
+  controlsEl.appendChild(title);
+
+  sec.items.forEach(it => {
+    const dec = decimalsOf(it.step);
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="lbl">
+        <span><span class="zh">${it.zh}</span><span class="en">${it.en}</span></span>
+        <span class="val"></span>
+      </div>
+      <input type="range" min="${it.min}" max="${it.max}" step="${it.step}">
+    `;
+    const input = row.querySelector('input');
+    const val = row.querySelector('.val');
+    input.value = P[it.k];
+    val.textContent = P[it.k].toFixed(dec);
+
+    guardTouch(input, () => {
+      P[it.k] = parseFloat(input.value);
+      val.textContent = P[it.k].toFixed(dec);
+      onParamChange(it.upd);
+    });
+
+    inputRefs[it.k] = { input, val, dec };
+    controlsEl.appendChild(row);
+  });
+});
+
+function onParamChange(upd) {
+  switch (upd) {
+    case 'shape': rebuildShape(); break;
+    case 'tex':   scheduleTex(); break;
+    case 'mat':   applyMaterial(); break;
+    case 'light': applyLight(); break;
+  }
+}
+
+// 面板收合
+const panel = document.getElementById('panel');
+const toggleBtn = document.getElementById('toggleBtn');
+document.getElementById('panelHead').addEventListener('click', () => {
+  panel.classList.toggle('collapsed');
+  toggleBtn.textContent = panel.classList.contains('collapsed') ? '展開 / Show' : '收合 / Hide';
+});
+
+// 重設
+document.getElementById('resetBtn').addEventListener('click', () => {
+  Object.assign(P, DEFAULTS);
+  for (const k in inputRefs) {
+    const { input, val, dec } = inputRefs[k];
+    input.value = P[k];
+    val.textContent = P[k].toFixed(dec);
+  }
+  rebuildShape();
+  applyMaterial();
+  applyLight();
+  buildTextures(1024, 512);
+});
+
+// 截圖
+document.getElementById('shotBtn').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  const a = document.createElement('a');
+  a.download = 'apple.png';
+  a.href = renderer.domElement.toDataURL('image/png');
+  a.click();
+});
+
+// ============================================================
+// 12. 首次產生貼圖與渲染迴圈
+// ============================================================
+buildTextures(1024, 512);
+applyMaterial();
+applyLight();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  appleGroup.rotation.y += P.spin;
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
