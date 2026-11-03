@@ -22,7 +22,7 @@
   #panel {
     position: absolute; top: 16px; right: 16px;
     width: 200px; max-width: calc(100vw - 32px);
-    max-height: calc(var(--vvh, 100vh) - 32px);   /* 依實際可見高度，避開網址列與虛擬按鍵 */
+    max-height: calc(var(--vvh, 100vh) *0.6);   /* 依實際可見高度，避開網址列與虛擬按鍵 */
     display: flex; flex-direction: column;
     background: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(12px);
@@ -146,7 +146,7 @@ const R = 2; // 蘋果半徑
 // upd: 'shape' 重建幾何 | 'tex' 重繪貼圖 | 'mat' 更新材質 | 'light' 更新燈光
 const SCHEMA = [
   {
-    zh: '形狀', en: 'Shape',
+    zh: '☆形狀', en: 'Shape',
     items: [
       { k: 'widthTaper',   zh: '上寬下窄',   en: 'Shoulder taper',      min: 0,    max: 0.25, step: 0.005, def: 0.09,  upd: 'shape' },
       { k: 'lobes',        zh: '五瓣肩部',   en: 'Five-lobe shoulders', min: 0,    max: 0.12, step: 0.001, def: 0.045, upd: 'shape' },
@@ -161,7 +161,7 @@ const SCHEMA = [
     ]
   },
   {
-    zh: '果皮顏色', en: 'Skin color',
+    zh: '☆果皮顏色', en: 'Skin color',
     items: [
       { k: 'redAmount',     zh: '紅色覆蓋',   en: 'Red coverage',               min: 0,  max: 1,  step: 0.01, def: 0.5,  upd: 'tex' },
       { k: 'topBias',       zh: '頂部偏紅',   en: 'Top redness',                min: 0,  max: 0.4, step: 0.01, def: 0.18, upd: 'tex' },
@@ -175,7 +175,7 @@ const SCHEMA = [
     ]
   },
   {
-    zh: '凹凸與紋理', en: 'Bump & texture',
+    zh: '☆凹凸與紋理', en: 'Bump & texture',
     items: [
       { k: 'bumpNoise', zh: '果皮紋理', en: 'Skin noise',     min: 0, max: 0.2, step: 0.005, def: 0.06, upd: 'tex' },
       { k: 'lentDepth', zh: '果點凹陷', en: 'Lenticel depth', min: 0, max: 0.7, step: 0.01,  def: 0.35, upd: 'tex' },
@@ -183,7 +183,7 @@ const SCHEMA = [
     ]
   },
   {
-    zh: '材質', en: 'Material',
+    zh: '☆材質', en: 'Material',
     items: [
       { k: 'roughness',          zh: '粗糙度',     en: 'Roughness',              min: 0, max: 1, step: 0.01, def: 0.42, upd: 'mat' },
       { k: 'clearcoat',          zh: '蠟質層',     en: 'Wax clearcoat',          min: 0, max: 1, step: 0.01, def: 0.7,  upd: 'mat' },
@@ -192,7 +192,7 @@ const SCHEMA = [
     ]
   },
   {
-    zh: '燈光與視角', en: 'Light & view',
+    zh: '☆燈光與視角', en: 'Light & view',
     items: [
       { k: 'exposure', zh: '曝光',     en: 'Exposure',    min: 0.4,    max: 2.0,   step: 0.01,   def: 1.0,   upd: 'light' },
       { k: 'keyLight', zh: '主光強度', en: 'Key light',   min: 0,      max: 4,     step: 0.05,   def: 2.0,   upd: 'light' },
