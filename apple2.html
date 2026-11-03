@@ -22,7 +22,7 @@
   #panel {
     position: absolute; top: 16px; right: 16px;
     width: 200px; max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 32px);
+    max-height: calc(var(--vvh, 100vh) - 32px);   /* 依實際可見高度，避開網址列與虛擬按鍵 */
     display: flex; flex-direction: column;
     background: rgba(255, 255, 255, 0.3);
     backdrop-filter: blur(12px);
@@ -123,6 +123,21 @@
 <div id="texStatus"></div>
 
 <script>
+// ============================================================
+// 手機可見區域：依 visualViewport 調整面板高度，避開網址列與虛擬按鍵
+// ============================================================
+function fitPanelToViewport() {
+  const vv = window.visualViewport;
+  const h = vv ? vv.height : window.innerHeight;
+  document.documentElement.style.setProperty('--vvh', h + 'px');
+}
+fitPanelToViewport();
+window.addEventListener('resize', fitPanelToViewport);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fitPanelToViewport);
+  window.visualViewport.addEventListener('scroll', fitPanelToViewport);
+}
+
 // ============================================================
 // 0. 常數與參數定義
 // ============================================================
@@ -758,6 +773,12 @@ document.getElementById('panelHead').addEventListener('click', () => {
   panel.classList.toggle('collapsed');
   toggleBtn.textContent = panel.classList.contains('collapsed') ? '展開 / Show' : '收合 / Hide';
 });
+
+// 手機寬度較窄時，預設收合參數面板，避免一開始就遮住畫面
+if (window.matchMedia('(max-width: 600px)').matches) {
+  panel.classList.add('collapsed');
+  toggleBtn.textContent = '展開 / Show';
+}
 
 // 重設
 document.getElementById('resetBtn').addEventListener('click', () => {
